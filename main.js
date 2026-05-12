@@ -11,6 +11,7 @@ let mobileMenuCleanup = null;
 let lenis = null;
 let nextPage = document;
 let onceFunctionsInitialized = false;
+let mobileMenuClose = null;
 
 const hasLenis = typeof window.Lenis !== "undefined";
 const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
@@ -94,12 +95,10 @@ function initGlobalParallax() {
 
 function initMobileMenu() {
   if (mobileMenuCleanup) { mobileMenuCleanup(); mobileMenuCleanup = null; }
-  const menuIcon = nextPage.querySelector('.menu-icon');
-  const wrapper = nextPage.querySelector('.submenus-mobiel');
+  const root = nextPage || document;
+  const menuIcon = root.querySelector('[data-nav-toggle]');
+  const wrapper  = root.querySelector('[data-nav-wrapper]');
   if (!menuIcon || !wrapper) return;
-
-  const KEYS = ['menus', 'locatie', 'zakelijk', 'events', 'beaune'];
-  const SUB_HEIGHTS = { menus: 132, locatie: 200, zakelijk: 200, events: 244, beaune: 165 };
 
   const OPEN_D = 0.4;
   const CLOSE_D = 0.5;
@@ -107,15 +106,20 @@ function initMobileMenu() {
   const ICON_D = 0.2;
   const EASE = 'power4.out';
 
-  const lineTop    = menuIcon.querySelector('.menu-icon3_line-top');
-  const lineMid    = menuIcon.querySelector('.menu-icon_line-middle');
-  const lineBottom = menuIcon.querySelector('.menu-icon3_line-bottom');
+  const lineTop    = root.querySelector('[data-nav-line="top"]');
+  const lineMid    = root.querySelector('[data-nav-line="middle"]');
+  const lineBottom = root.querySelector('[data-nav-line="bottom"]');
+
+  const submenus = Array.from(root.querySelectorAll('[data-nav-submenu]'));
+  const subMap = {};
+  submenus.forEach(sub => {
+    const key = sub.getAttribute('data-nav-submenu');
+    const h   = parseFloat(sub.getAttribute('data-nav-height')) || 0;
+    subMap[key] = { el: sub, height: h };
+  });
 
   gsap.set(wrapper, { height: 0, overflow: 'hidden' });
-  KEYS.forEach(k => {
-    const sub = nextPage.querySelector(`.submenu-mobiel.${k}`);
-    if (sub) gsap.set(sub, { height: 0, overflow: 'hidden' });
-  });
+  submenus.forEach(sub => gsap.set(sub, { height: 0, overflow: 'hidden' }));
   if (lineTop)    gsap.set(lineTop,    { rotate: 0, y: 0 });
   if (lineMid)    gsap.set(lineMid,    { opacity: 1 });
   if (lineBottom) gsap.set(lineBottom, { rotate: 0, y: 0 });
@@ -125,10 +129,10 @@ function initMobileMenu() {
 
   const closeActiveSub = (instant = false) => {
     if (!activeSub) return;
-    const sub = nextPage.querySelector(`.submenu-mobiel.${activeSub}`);
-    if (sub) {
-      if (instant) gsap.set(sub, { height: 0 });
-      else gsap.to(sub, { height: 0, duration: SUB_D, ease: EASE });
+    const entry = subMap[activeSub];
+    if (entry) {
+      if (instant) gsap.set(entry.el, { height: 0 });
+      else gsap.to(entry.el, { height: 0, duration: SUB_D, ease: EASE });
     }
     activeSub = null;
   };
@@ -159,6 +163,7 @@ function initMobileMenu() {
   };
 
   const closeMenu = (instant = false) => {
+    if (!menuOpen) return;
     menuOpen = false;
     menuIcon.classList.remove('is-open');
     closeActiveSub(instant);
@@ -167,6 +172,8 @@ function initMobileMenu() {
     else gsap.to(wrapper, { height: 0, duration: CLOSE_D, ease: EASE });
   };
 
+  mobileMenuClose = closeMenu;
+
   const onMenuIconClick = (e) => {
     e.preventDefault();
     if (menuOpen) closeMenu(); else openMenu();
@@ -174,24 +181,24 @@ function initMobileMenu() {
   menuIcon.addEventListener('click', onMenuIconClick);
 
   const handlers = [];
-  KEYS.forEach(k => {
-    const link = nextPage.querySelector(`.navbar-link.mobiel.${k}`);
-    const sub  = nextPage.querySelector(`.submenu-mobiel.${k}`);
-    if (!link || !sub) return;
-    const targetH = SUB_HEIGHTS[k];
+  const triggers = Array.from(root.querySelectorAll('[data-nav-trigger]'));
+  triggers.forEach(link => {
+    const key = link.getAttribute('data-nav-trigger');
+    const entry = subMap[key];
+    if (!entry) return;
     const onClick = (e) => {
       e.preventDefault();
-      if (activeSub === k) {
-        gsap.to(sub, { height: 0, duration: SUB_D, ease: EASE });
+      if (activeSub === key) {
+        gsap.to(entry.el, { height: 0, duration: SUB_D, ease: EASE });
         activeSub = null;
         return;
       }
       if (activeSub) {
-        const prev = nextPage.querySelector(`.submenu-mobiel.${activeSub}`);
-        if (prev) gsap.to(prev, { height: 0, duration: SUB_D, ease: EASE });
+        const prev = subMap[activeSub];
+        if (prev) gsap.to(prev.el, { height: 0, duration: SUB_D, ease: EASE });
       }
-      gsap.to(sub, { height: targetH, duration: SUB_D, ease: EASE });
-      activeSub = k;
+      gsap.to(entry.el, { height: entry.height, duration: SUB_D, ease: EASE });
+      activeSub = key;
     };
     link.addEventListener('click', onClick);
     handlers.push({ el: link, fn: onClick });
@@ -200,6 +207,7 @@ function initMobileMenu() {
   mobileMenuCleanup = () => {
     menuIcon.removeEventListener('click', onMenuIconClick);
     handlers.forEach(({ el, fn }) => el.removeEventListener('click', fn));
+    mobileMenuClose = null;
   };
 }
 
@@ -484,18 +492,7 @@ barba.hooks.beforeEnter(data => {
 });
 
 barba.hooks.beforeLeave(() => {
-  document.querySelectorAll('.submenus-mobiel, .submenu-mobiel').forEach(el => {
-    gsap.set(el, { height: 0 });
-  });
-  const menuIcon = document.querySelector('.menu-icon');
-  if (!menuIcon) return;
-  menuIcon.classList.remove('is-open');
-  const lt = menuIcon.querySelector('.menu-icon3_line-top');
-  const lm = menuIcon.querySelector('.menu-icon_line-middle');
-  const lb = menuIcon.querySelector('.menu-icon3_line-bottom');
-  if (lt) gsap.set(lt, { y: 0, rotate: 0 });
-  if (lm) gsap.set(lm, { opacity: 1 });
-  if (lb) gsap.set(lb, { y: 0, rotate: 0 });
+  if (mobileMenuClose) mobileMenuClose(false);
 });
 
 barba.hooks.afterLeave(() => {
