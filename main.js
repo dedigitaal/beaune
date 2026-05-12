@@ -361,7 +361,7 @@ function initWelcomingWordsLoader() {
 
   const tl = gsap.timeline();
   tl.set(loadingWords, { yPercent: 50 });
-  tl.to(loadingWords, { opacity: 1, yPercent: 0, duration: 1, ease: "Expo.easeInOut" });
+  tl.to(loadingWords, { opacity: 1, yPercent: 0, duration: 1.5, ease: "Expo.easeInOut" });
   words.forEach(word => {
     tl.call(() => { wordsTarget.textContent = word; }, null, '+=0.15');
   });
