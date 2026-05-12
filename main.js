@@ -91,9 +91,6 @@ function initGlobalParallax() {
     }
   );
 }
-
-Bonjour, Salut, Bienvenue, Bonsoir, Allô, Bon appétit, À table!
-
 function initBannerMarquee() {
   if (bannerAnim) { bannerAnim.kill(); bannerAnim = null; }
   if (bannerST)   { bannerST.kill();   bannerST = null; }
