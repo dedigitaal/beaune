@@ -91,6 +91,118 @@ function initGlobalParallax() {
     }
   );
 }
+
+function initMobileMenu() {
+  if (mobileMenuCleanup) { mobileMenuCleanup(); mobileMenuCleanup = null; }
+  const menuIcon = nextPage.querySelector('.menu-icon');
+  const wrapper = nextPage.querySelector('.submenus-mobiel');
+  if (!menuIcon || !wrapper) return;
+
+  const KEYS = ['menus', 'locatie', 'zakelijk', 'events', 'beaune'];
+  const SUB_HEIGHTS = { menus: 132, locatie: 200, zakelijk: 200, events: 244, beaune: 165 };
+
+  const OPEN_D = 0.4;
+  const CLOSE_D = 0.5;
+  const SUB_D = 0.5;
+  const ICON_D = 0.2;
+  const EASE = 'power4.out';
+
+  const lineTop    = menuIcon.querySelector('.menu-icon3_line-top');
+  const lineMid    = menuIcon.querySelector('.menu-icon_line-middle');
+  const lineBottom = menuIcon.querySelector('.menu-icon3_line-bottom');
+
+  gsap.set(wrapper, { height: 0, overflow: 'hidden' });
+  KEYS.forEach(k => {
+    const sub = nextPage.querySelector(`.submenu-mobiel.${k}`);
+    if (sub) gsap.set(sub, { height: 0, overflow: 'hidden' });
+  });
+  if (lineTop)    gsap.set(lineTop,    { rotate: 0, y: 0 });
+  if (lineMid)    gsap.set(lineMid,    { opacity: 1 });
+  if (lineBottom) gsap.set(lineBottom, { rotate: 0, y: 0 });
+
+  let menuOpen = false;
+  let activeSub = null;
+
+  const closeActiveSub = (instant = false) => {
+    if (!activeSub) return;
+    const sub = nextPage.querySelector(`.submenu-mobiel.${activeSub}`);
+    if (sub) {
+      if (instant) gsap.set(sub, { height: 0 });
+      else gsap.to(sub, { height: 0, duration: SUB_D, ease: EASE });
+    }
+    activeSub = null;
+  };
+
+  const iconToX = () => {
+    if (lineMid)    gsap.to(lineMid,    { opacity: 0, duration: ICON_D, ease: EASE });
+    if (lineTop)    gsap.to(lineTop,    { y: 8,  rotate: 45,  duration: ICON_D, ease: EASE });
+    if (lineBottom) gsap.to(lineBottom, { y: -8, rotate: -45, duration: ICON_D, ease: EASE });
+  };
+
+  const iconToHamburger = (instant = false) => {
+    if (instant) {
+      if (lineMid)    gsap.set(lineMid,    { opacity: 1 });
+      if (lineTop)    gsap.set(lineTop,    { y: 0, rotate: 0 });
+      if (lineBottom) gsap.set(lineBottom, { y: 0, rotate: 0 });
+      return;
+    }
+    if (lineMid)    gsap.to(lineMid,    { opacity: 1, duration: ICON_D, ease: EASE });
+    if (lineTop)    gsap.to(lineTop,    { y: 0, rotate: 0, duration: ICON_D, ease: EASE });
+    if (lineBottom) gsap.to(lineBottom, { y: 0, rotate: 0, duration: ICON_D, ease: EASE });
+  };
+
+  const openMenu = () => {
+    menuOpen = true;
+    menuIcon.classList.add('is-open');
+    iconToX();
+    gsap.to(wrapper, { height: 'auto', duration: OPEN_D, ease: EASE });
+  };
+
+  const closeMenu = (instant = false) => {
+    menuOpen = false;
+    menuIcon.classList.remove('is-open');
+    closeActiveSub(instant);
+    iconToHamburger(instant);
+    if (instant) gsap.set(wrapper, { height: 0 });
+    else gsap.to(wrapper, { height: 0, duration: CLOSE_D, ease: EASE });
+  };
+
+  const onMenuIconClick = (e) => {
+    e.preventDefault();
+    if (menuOpen) closeMenu(); else openMenu();
+  };
+  menuIcon.addEventListener('click', onMenuIconClick);
+
+  const handlers = [];
+  KEYS.forEach(k => {
+    const link = nextPage.querySelector(`.navbar-link.mobiel.${k}`);
+    const sub  = nextPage.querySelector(`.submenu-mobiel.${k}`);
+    if (!link || !sub) return;
+    const targetH = SUB_HEIGHTS[k];
+    const onClick = (e) => {
+      e.preventDefault();
+      if (activeSub === k) {
+        gsap.to(sub, { height: 0, duration: SUB_D, ease: EASE });
+        activeSub = null;
+        return;
+      }
+      if (activeSub) {
+        const prev = nextPage.querySelector(`.submenu-mobiel.${activeSub}`);
+        if (prev) gsap.to(prev, { height: 0, duration: SUB_D, ease: EASE });
+      }
+      gsap.to(sub, { height: targetH, duration: SUB_D, ease: EASE });
+      activeSub = k;
+    };
+    link.addEventListener('click', onClick);
+    handlers.push({ el: link, fn: onClick });
+  });
+
+  mobileMenuCleanup = () => {
+    menuIcon.removeEventListener('click', onMenuIconClick);
+    handlers.forEach(({ el, fn }) => el.removeEventListener('click', fn));
+  };
+}
+
 function initBannerMarquee() {
   if (bannerAnim) { bannerAnim.kill(); bannerAnim = null; }
   if (bannerST)   { bannerST.kill();   bannerST = null; }
@@ -372,15 +484,18 @@ barba.hooks.beforeEnter(data => {
 });
 
 barba.hooks.beforeLeave(() => {
-  // Sluit mobiel menu instant bij elke Barba navigatie
   document.querySelectorAll('.submenus-mobiel, .submenu-mobiel').forEach(el => {
     gsap.set(el, { height: 0 });
   });
   const menuIcon = document.querySelector('.menu-icon');
-  if (menuIcon) {
-    gsap.set(menuIcon, { rotate: 0 });
-    menuIcon.classList.remove('is-open');
-  }
+  if (!menuIcon) return;
+  menuIcon.classList.remove('is-open');
+  const lt = menuIcon.querySelector('.menu-icon3_line-top');
+  const lm = menuIcon.querySelector('.menu-icon_line-middle');
+  const lb = menuIcon.querySelector('.menu-icon3_line-bottom');
+  if (lt) gsap.set(lt, { y: 0, rotate: 0 });
+  if (lm) gsap.set(lm, { opacity: 1 });
+  if (lb) gsap.set(lb, { y: 0, rotate: 0 });
 });
 
 barba.hooks.afterLeave(() => {
@@ -403,18 +518,6 @@ barba.hooks.afterEnter(data => {
   if (hasLenis) { lenis.resize(); lenis.start(); }
   if (hasScrollTrigger) ScrollTrigger.refresh();
   loaderShouldBeHidden = true;
-});
-
-barba.hooks.afterOnce(data => {
-  if (data && data.next && data.next.container) {
-    const c = data.next.container;
-    c.style.position = '';
-    c.style.top = '';
-    c.style.left = '';
-    c.style.right = '';
-  }
-  if (hasLenis) { lenis.resize(); lenis.start(); }
-  if (hasScrollTrigger) ScrollTrigger.refresh();
 });
 
 // ===========================================
@@ -464,12 +567,7 @@ function initLenis() {
 
 function resetPage(container) {
   window.scrollTo(0, 0);
-  if (container) {
-    container.style.position = '';
-    container.style.top = '';
-    container.style.left = '';
-    container.style.right = '';
-  }
+  gsap.set(container, { clearProps: "position,top,left,right" });
   if (hasLenis) { lenis.resize(); lenis.start(); }
 }
 
