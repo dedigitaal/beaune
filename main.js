@@ -405,6 +405,18 @@ barba.hooks.afterEnter(data => {
   loaderShouldBeHidden = true;
 });
 
+barba.hooks.afterOnce(data => {
+  if (data && data.next && data.next.container) {
+    const c = data.next.container;
+    c.style.position = '';
+    c.style.top = '';
+    c.style.left = '';
+    c.style.right = '';
+  }
+  if (hasLenis) { lenis.resize(); lenis.start(); }
+  if (hasScrollTrigger) ScrollTrigger.refresh();
+});
+
 // ===========================================
 // BARBA INIT
 // ===========================================
@@ -452,7 +464,12 @@ function initLenis() {
 
 function resetPage(container) {
   window.scrollTo(0, 0);
-  gsap.set(container, { clearProps: "position,top,left,right" });
+  if (container) {
+    container.style.position = '';
+    container.style.top = '';
+    container.style.left = '';
+    container.style.right = '';
+  }
   if (hasLenis) { lenis.resize(); lenis.start(); }
 }
 
