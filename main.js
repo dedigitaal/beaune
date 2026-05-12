@@ -95,9 +95,8 @@ function initGlobalParallax() {
 
 function initMobileMenu() {
   if (mobileMenuCleanup) { mobileMenuCleanup(); mobileMenuCleanup = null; }
-  const root = nextPage || document;
-  const menuIcon = root.querySelector('[data-nav-toggle]');
-  const wrapper  = root.querySelector('[data-nav-wrapper]');
+  const menuIcon = document.querySelector('[data-nav-toggle]');
+  const wrapper  = document.querySelector('[data-nav-wrapper]');
   if (!menuIcon || !wrapper) return;
 
   const OPEN_D = 0.4;
@@ -106,11 +105,11 @@ function initMobileMenu() {
   const ICON_D = 0.2;
   const EASE = 'power4.out';
 
-  const lineTop    = root.querySelector('[data-nav-line="top"]');
-  const lineMid    = root.querySelector('[data-nav-line="middle"]');
-  const lineBottom = root.querySelector('[data-nav-line="bottom"]');
+  const lineTop    = document.querySelector('[data-nav-line="top"]');
+  const lineMid    = document.querySelector('[data-nav-line="middle"]');
+  const lineBottom = document.querySelector('[data-nav-line="bottom"]');
 
-  const submenus = Array.from(root.querySelectorAll('[data-nav-submenu]'));
+  const submenus = Array.from(document.querySelectorAll('[data-nav-submenu]'));
   const subMap = {};
   submenus.forEach(sub => {
     const key = sub.getAttribute('data-nav-submenu');
@@ -181,7 +180,7 @@ function initMobileMenu() {
   menuIcon.addEventListener('click', onMenuIconClick);
 
   const handlers = [];
-  const triggers = Array.from(root.querySelectorAll('[data-nav-trigger]'));
+  const triggers = Array.from(document.querySelectorAll('[data-nav-trigger]'));
   triggers.forEach(link => {
     const key = link.getAttribute('data-nav-trigger');
     const entry = subMap[key];
