@@ -48,7 +48,25 @@ function initBgVideos() {
     if (p && typeof p.catch === 'function') p.catch(() => {});
   });
 }
+function initCaptcha() {
+  // Webflow's eigen forms runtime re-init (handelt o.a. Turnstile/Bot Blocker af)
+  if (typeof window.Webflow !== 'undefined' && window.Webflow.require) {
+    try { window.Webflow.require('forms').ready(); } catch (e) {}
+  }
 
+  // Google reCAPTCHA widgets opnieuw renderen
+  if (typeof window.grecaptcha !== 'undefined' && typeof window.grecaptcha.render === 'function') {
+    nextPage.querySelectorAll('.g-recaptcha').forEach(widget => {
+      // Skip als al gerenderd (bevat al een iframe)
+      if (widget.querySelector('iframe')) return;
+      const sitekey = widget.getAttribute('data-sitekey');
+      if (!sitekey) return;
+      try {
+        window.grecaptcha.render(widget, { sitekey });
+      } catch (e) {}
+    });
+  }
+}
 function initGlobalParallax() {
   if (parallaxMM) { parallaxMM.kill(); parallaxMM = null; }
   parallaxMM = gsap.matchMedia();
@@ -427,6 +445,7 @@ function initAfterEnterFunctions(next) {
   initBgVideos();
   initGlobalParallax();
   initMobileMenu();
+  initCaptcha();           
   if (hasLenis) lenis.resize();
   if (hasScrollTrigger) ScrollTrigger.refresh();
 }
