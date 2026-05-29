@@ -49,9 +49,6 @@ function initBgVideos() {
   });
 }
 function initWebflowRuntime(data) {
-  // Stap 1: Update data-wf-page attribute naar de nieuwe page id.
-  // Zonder dit weet Webflow's runtime niet welke page actief is en bindt
-  // het form handlers verkeerd (waardoor de submit button geblokkeerd blijft)
   if (data && data.next && data.next.html) {
     const parser = new DOMParser();
     const newDoc = parser.parseFromString(data.next.html, 'text/html');
@@ -61,7 +58,6 @@ function initWebflowRuntime(data) {
     }
   }
 
-  // Stap 2: Webflow runtime reset
   if (typeof window.Webflow !== 'undefined') {
     try {
       if (typeof window.Webflow.destroy === 'function') window.Webflow.destroy();
@@ -69,8 +65,6 @@ function initWebflowRuntime(data) {
     } catch (e) {}
   }
 
-  // Stap 3: readystatechange event triggert scripts die daarop luisteren
-  // (Webflow's bot blocker, externe captcha loaders)
   try { document.dispatchEvent(new Event('readystatechange')); } catch (e) {}
 }
 
@@ -536,6 +530,7 @@ barba.hooks.afterLeave(() => {
 barba.hooks.enter(data => { initBarbaNavUpdate(data); });
 
 barba.hooks.afterEnter(data => {
+  initWebflowRuntime(data);      
   initAfterEnterFunctions(data.next.container);
   if (hasLenis) { lenis.resize(); lenis.start(); }
   if (hasScrollTrigger) ScrollTrigger.refresh();
