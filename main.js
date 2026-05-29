@@ -48,25 +48,43 @@ function initBgVideos() {
     if (p && typeof p.catch === 'function') p.catch(() => {});
   });
 }
-function initCaptcha() {
-  // Webflow's eigen forms runtime re-init (handelt o.a. Turnstile/Bot Blocker af)
-  if (typeof window.Webflow !== 'undefined' && window.Webflow.require) {
+function initWebflowRuntime() {
+  if (typeof window.Webflow === 'undefined') return;
+
+  // Hard reset Webflow's runtime: destroy + ready bindt alle form, captcha
+  // en interactielogica opnieuw aan de huidige DOM
+  try {
+    if (typeof window.Webflow.destroy === 'function') window.Webflow.destroy();
+    if (typeof window.Webflow.ready === 'function')   window.Webflow.ready();
+  } catch (e) {}
+
+  // Forms module expliciet voor de zekerheid
+  if (window.Webflow.require) {
     try { window.Webflow.require('forms').ready(); } catch (e) {}
+  }
+
+  // Cloudflare Turnstile widgets opnieuw renderen
+  if (typeof window.turnstile !== 'undefined' && typeof window.turnstile.render === 'function') {
+    nextPage.querySelectorAll('[data-turnstile-sitekey]').forEach(el => {
+      // Skip als al gerenderd
+      if (el.querySelector('iframe')) return;
+      const sitekey = el.getAttribute('data-turnstile-sitekey');
+      if (!sitekey) return;
+      try { window.turnstile.render(el, { sitekey }); } catch (e) {}
+    });
   }
 
   // Google reCAPTCHA widgets opnieuw renderen
   if (typeof window.grecaptcha !== 'undefined' && typeof window.grecaptcha.render === 'function') {
-    nextPage.querySelectorAll('.g-recaptcha').forEach(widget => {
-      // Skip als al gerenderd (bevat al een iframe)
-      if (widget.querySelector('iframe')) return;
-      const sitekey = widget.getAttribute('data-sitekey');
+    nextPage.querySelectorAll('.g-recaptcha').forEach(el => {
+      if (el.querySelector('iframe')) return;
+      const sitekey = el.getAttribute('data-sitekey');
       if (!sitekey) return;
-      try {
-        window.grecaptcha.render(widget, { sitekey });
-      } catch (e) {}
+      try { window.grecaptcha.render(el, { sitekey }); } catch (e) {}
     });
   }
 }
+
 function initGlobalParallax() {
   if (parallaxMM) { parallaxMM.kill(); parallaxMM = null; }
   parallaxMM = gsap.matchMedia();
@@ -445,7 +463,7 @@ function initAfterEnterFunctions(next) {
   initBgVideos();
   initGlobalParallax();
   initMobileMenu();
-  initCaptcha();           
+  initWebflowRuntime();          
   if (hasLenis) lenis.resize();
   if (hasScrollTrigger) ScrollTrigger.refresh();
 }
