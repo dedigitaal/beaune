@@ -49,23 +49,59 @@ function initBgVideos() {
   });
 }
 function initWebflowRuntime(data) {
-  if (data && data.next && data.next.html) {
-    const parser = new DOMParser();
-    const newDoc = parser.parseFromString(data.next.html, 'text/html');
-    const newWfPage = newDoc.documentElement.getAttribute('data-wf-page');
-    if (newWfPage) {
-      document.documentElement.setAttribute('data-wf-page', newWfPage);
+  // 1 seconde wachten, dan alles re-initialiseren
+  setTimeout(() => {
+    // Update data-wf-page naar nieuwe page id
+    if (data && data.next && data.next.html) {
+      const parser = new DOMParser();
+      const newDoc = parser.parseFromString(data.next.html, 'text/html');
+      const newWfPage = newDoc.documentElement.getAttribute('data-wf-page');
+      if (newWfPage) {
+        document.documentElement.setAttribute('data-wf-page', newWfPage);
+      }
     }
-  }
 
-  if (typeof window.Webflow !== 'undefined') {
-    try {
-      if (typeof window.Webflow.destroy === 'function') window.Webflow.destroy();
-      if (typeof window.Webflow.ready === 'function')   window.Webflow.ready();
-    } catch (e) {}
-  }
+    // Webflow runtime hard reset
+    if (typeof window.Webflow !== 'undefined') {
+      try {
+        if (typeof window.Webflow.destroy === 'function') window.Webflow.destroy();
+        if (typeof window.Webflow.ready === 'function')   window.Webflow.ready();
+        if (window.Webflow.require) {
+          try { window.Webflow.require('forms').ready(); } catch (e) {}
+          try { window.Webflow.require('ix2').init(); } catch (e) {}
+        }
+      } catch (e) {}
+    }
 
-  try { document.dispatchEvent(new Event('readystatechange')); } catch (e) {}
+    // Submit button uit disabled state forceren (Webflow zet 'm soms vast)
+    document.querySelectorAll('form input[type="submit"], form button[type="submit"]').forEach(btn => {
+      btn.disabled = false;
+      btn.classList.remove('w-form-loading');
+    });
+
+    // Cloudflare Turnstile widgets renderen
+    if (typeof window.turnstile !== 'undefined' && typeof window.turnstile.render === 'function') {
+      document.querySelectorAll('[data-turnstile-sitekey]').forEach(el => {
+        if (el.querySelector('iframe')) return;
+        const sitekey = el.getAttribute('data-turnstile-sitekey');
+        if (!sitekey) return;
+        try { window.turnstile.render(el, { sitekey }); } catch (e) {}
+      });
+    }
+
+    // Google reCAPTCHA widgets renderen
+    if (typeof window.grecaptcha !== 'undefined' && typeof window.grecaptcha.render === 'function') {
+      document.querySelectorAll('.g-recaptcha').forEach(el => {
+        if (el.querySelector('iframe')) return;
+        const sitekey = el.getAttribute('data-sitekey');
+        if (!sitekey) return;
+        try { window.grecaptcha.render(el, { sitekey }); } catch (e) {}
+      });
+    }
+
+    // readystatechange voor scripts die daarop luisteren
+    try { document.dispatchEvent(new Event('readystatechange')); } catch (e) {}
+  }, 1000);
 }
 
 function initGlobalParallax() {
