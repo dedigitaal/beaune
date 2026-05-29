@@ -48,41 +48,30 @@ function initBgVideos() {
     if (p && typeof p.catch === 'function') p.catch(() => {});
   });
 }
-function initWebflowRuntime() {
-  if (typeof window.Webflow === 'undefined') return;
-
-  // Hard reset Webflow's runtime: destroy + ready bindt alle form, captcha
-  // en interactielogica opnieuw aan de huidige DOM
-  try {
-    if (typeof window.Webflow.destroy === 'function') window.Webflow.destroy();
-    if (typeof window.Webflow.ready === 'function')   window.Webflow.ready();
-  } catch (e) {}
-
-  // Forms module expliciet voor de zekerheid
-  if (window.Webflow.require) {
-    try { window.Webflow.require('forms').ready(); } catch (e) {}
+function initWebflowRuntime(data) {
+  // Stap 1: Update data-wf-page attribute naar de nieuwe page id.
+  // Zonder dit weet Webflow's runtime niet welke page actief is en bindt
+  // het form handlers verkeerd (waardoor de submit button geblokkeerd blijft)
+  if (data && data.next && data.next.html) {
+    const parser = new DOMParser();
+    const newDoc = parser.parseFromString(data.next.html, 'text/html');
+    const newWfPage = newDoc.documentElement.getAttribute('data-wf-page');
+    if (newWfPage) {
+      document.documentElement.setAttribute('data-wf-page', newWfPage);
+    }
   }
 
-  // Cloudflare Turnstile widgets opnieuw renderen
-  if (typeof window.turnstile !== 'undefined' && typeof window.turnstile.render === 'function') {
-    nextPage.querySelectorAll('[data-turnstile-sitekey]').forEach(el => {
-      // Skip als al gerenderd
-      if (el.querySelector('iframe')) return;
-      const sitekey = el.getAttribute('data-turnstile-sitekey');
-      if (!sitekey) return;
-      try { window.turnstile.render(el, { sitekey }); } catch (e) {}
-    });
+  // Stap 2: Webflow runtime reset
+  if (typeof window.Webflow !== 'undefined') {
+    try {
+      if (typeof window.Webflow.destroy === 'function') window.Webflow.destroy();
+      if (typeof window.Webflow.ready === 'function')   window.Webflow.ready();
+    } catch (e) {}
   }
 
-  // Google reCAPTCHA widgets opnieuw renderen
-  if (typeof window.grecaptcha !== 'undefined' && typeof window.grecaptcha.render === 'function') {
-    nextPage.querySelectorAll('.g-recaptcha').forEach(el => {
-      if (el.querySelector('iframe')) return;
-      const sitekey = el.getAttribute('data-sitekey');
-      if (!sitekey) return;
-      try { window.grecaptcha.render(el, { sitekey }); } catch (e) {}
-    });
-  }
+  // Stap 3: readystatechange event triggert scripts die daarop luisteren
+  // (Webflow's bot blocker, externe captcha loaders)
+  try { document.dispatchEvent(new Event('readystatechange')); } catch (e) {}
 }
 
 function initGlobalParallax() {
