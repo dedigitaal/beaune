@@ -60,11 +60,11 @@ function runPageLeaveAnimation(current, next) {
     : null;
   const tl = gsap.timeline({ onComplete: () => current.remove() });
 
-  if (reducedMotion || !transitionWrap) {
+  if (reducedMotion) {
     return tl.set(current, { autoAlpha: 0 });
   }
 
-  tl.set(transitionWrap, { zIndex: 2 }, 0);
+  if (transitionWrap) tl.set(transitionWrap, { zIndex: 2 }, 0);
   if (transitionDark) {
     tl.fromTo(transitionDark,
       { autoAlpha: 0 },
@@ -83,10 +83,9 @@ function runPageLeaveAnimation(current, next) {
   return tl;
 }
 function runPageEnterAnimation(next) {
-  const transitionWrap = document.querySelector("[data-transition-wrap]");
   const tl = gsap.timeline();
 
-  if (reducedMotion || !transitionWrap) {
+  if (reducedMotion) {
     tl.call(reinitWebflow, null, 0);
     tl.set(next, { autoAlpha: 1 });
     tl.add("pageReady");
