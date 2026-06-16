@@ -5,6 +5,7 @@ gsap.registerPlugin(CustomEase, ScrollTrigger, Observer, SplitText);
 history.scrollRestoration = "manual";
 let lenis = null; 
 let nextPage = document;
+let leavingContainer = null;
 let onceFunctionsInitialized = false;
 const hasLenis = typeof window.Lenis !== "undefined";
 const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
@@ -251,10 +252,8 @@ barba.hooks.beforeEnter(data => {
   if (wfPage) document.documentElement.setAttribute("data-wf-page", wfPage);
   gsap.set(data.next.container, { position: "fixed", top: 0, left: 0, right: 0 });
   if (lenis && typeof lenis.stop === "function") lenis.stop();
-  // Voorkom dat reinitWebflow de load-animaties op de wegschietende pagina opnieuw afspeelt
-  if (data.current && data.current.container) {
-    data.current.container.querySelectorAll('[data-w-id]').forEach(el => el.removeAttribute('data-w-id'));
-  }
+  // Onthoud de wegschietende container zodat reinitWebflow hem tijdens de IX3-scan kan negeren
+  leavingContainer = data.current ? data.current.container : null;
   initBeforeEnterFunctions(data.next.container);
   applyThemeFrom(data.next.container);
 });
@@ -293,6 +292,15 @@ barba.init({
 // -----------------------------------------
 function reinitWebflow() {
   if (!window.Webflow) return;
+  // Haal de wegschietende container even uit de DOM zodat ix3.init() zijn page-load
+  // animaties niet opnieuw afspeelt op een pagina die toch verdwijnt
+  let detachParent = null;
+  let detachSibling = null;
+  if (leavingContainer && leavingContainer.parentNode) {
+    detachParent = leavingContainer.parentNode;
+    detachSibling = leavingContainer.nextSibling;
+    detachParent.removeChild(leavingContainer);
+  }
   try {
     window.Webflow.destroy();
     window.Webflow.ready();
@@ -306,6 +314,8 @@ function reinitWebflow() {
     document.dispatchEvent(new Event("readystatechange"));
   } catch (e) {
     console.warn("Webflow re-init failed:", e);
+  } finally {
+    if (detachParent) detachParent.insertBefore(leavingContainer, detachSibling);
   }
 }
 // -----------------------------------------
