@@ -1,581 +1,274 @@
-// ===========================================
-// STATE + CLEANUP REFS
-// ===========================================
-let bannerAnim = null;
-let bannerST = null;
-let menuPhotoCleanup = null;
-let listSlider = null;
-let loaderShouldBeHidden = false;
-let parallaxMM = null;
-let mobileMenuCleanup = null;
-let lenis = null;
+// -----------------------------------------
+// OSMO PAGE TRANSITION + WEBFLOW IX2/IX3 + GSAP RE-INIT
+// -----------------------------------------
+gsap.registerPlugin(CustomEase, ScrollTrigger, Observer, SplitText);
+history.scrollRestoration = "manual";
+let lenis = null; 
 let nextPage = document;
 let onceFunctionsInitialized = false;
-let mobileMenuClose = null;
-
 const hasLenis = typeof window.Lenis !== "undefined";
 const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
 let reducedMotion = rmMQ.matches;
 rmMQ.addEventListener?.("change", e => (reducedMotion = e.matches));
-rmMQ.addListener?.(e => (reducedMotion = e.matches));
-
-// ===========================================
-// GSAP SETUP
-// ===========================================
-gsap.registerPlugin(CustomEase);
-history.scrollRestoration = "manual";
+const has = (s) => !!nextPage.querySelector(s);
+const staggerDefault = 0.05;
+const durationDefault = 0.6;
 CustomEase.create("osmo", "0.625, 0.05, 0, 1");
 CustomEase.create("parallax", "0.7, 0.05, 0.13, 1");
-gsap.defaults({ ease: "osmo", duration: 0.6 });
-
-const themeConfig = {
-  light: { nav: "dark",  transition: "light" },
-  dark:  { nav: "light", transition: "dark"  }
-};
-
-// ===========================================
-// PAGE-SPECIFIC INIT FUNCTIONS
-// ===========================================
-function initBgVideos() {
-  const videos = nextPage.querySelectorAll('video');
-  if (!videos.length) return;
-  videos.forEach(v => {
-    v.muted = true;
-    v.setAttribute('muted', '');
-    v.setAttribute('playsinline', '');
-    const p = v.play();
-    if (p && typeof p.catch === 'function') p.catch(() => {});
-  });
-}
-function initWebflowRuntime(data) {
-  // 1 seconde wachten, dan alles re-initialiseren
-  setTimeout(() => {
-    // Update data-wf-page naar nieuwe page id
-    if (data && data.next && data.next.html) {
-      const parser = new DOMParser();
-      const newDoc = parser.parseFromString(data.next.html, 'text/html');
-      const newWfPage = newDoc.documentElement.getAttribute('data-wf-page');
-      if (newWfPage) {
-        document.documentElement.setAttribute('data-wf-page', newWfPage);
-      }
-    }
-
-    // Webflow runtime hard reset
-    if (typeof window.Webflow !== 'undefined') {
-      try {
-        if (typeof window.Webflow.destroy === 'function') window.Webflow.destroy();
-        if (typeof window.Webflow.ready === 'function')   window.Webflow.ready();
-        if (window.Webflow.require) {
-          try { window.Webflow.require('forms').ready(); } catch (e) {}
-          try { window.Webflow.require('ix2').init(); } catch (e) {}
-        }
-      } catch (e) {}
-    }
-
-    // Submit button uit disabled state forceren (Webflow zet 'm soms vast)
-    document.querySelectorAll('form input[type="submit"], form button[type="submit"]').forEach(btn => {
-      btn.disabled = false;
-      btn.classList.remove('w-form-loading');
-    });
-
-    // Cloudflare Turnstile widgets renderen
-    if (typeof window.turnstile !== 'undefined' && typeof window.turnstile.render === 'function') {
-      document.querySelectorAll('[data-turnstile-sitekey]').forEach(el => {
-        if (el.querySelector('iframe')) return;
-        const sitekey = el.getAttribute('data-turnstile-sitekey');
-        if (!sitekey) return;
-        try { window.turnstile.render(el, { sitekey }); } catch (e) {}
-      });
-    }
-
-    // Google reCAPTCHA widgets renderen
-    if (typeof window.grecaptcha !== 'undefined' && typeof window.grecaptcha.render === 'function') {
-      document.querySelectorAll('.g-recaptcha').forEach(el => {
-        if (el.querySelector('iframe')) return;
-        const sitekey = el.getAttribute('data-sitekey');
-        if (!sitekey) return;
-        try { window.grecaptcha.render(el, { sitekey }); } catch (e) {}
-      });
-    }
-
-    // readystatechange voor scripts die daarop luisteren
-    try { document.dispatchEvent(new Event('readystatechange')); } catch (e) {}
-  }, 1000);
-}
-
-function initGlobalParallax() {
-  if (parallaxMM) { parallaxMM.kill(); parallaxMM = null; }
-  parallaxMM = gsap.matchMedia();
-  parallaxMM.add(
-    {
-      isMobile: "(max-width:479px)",
-      isMobileLandscape: "(max-width:767px)",
-      isTablet: "(max-width:991px)",
-      isDesktop: "(min-width:992px)"
-    },
-    (context) => {
-      const { isMobile, isMobileLandscape, isTablet } = context.conditions;
-      const ctx = gsap.context(() => {
-        nextPage.querySelectorAll('[data-parallax="trigger"]').forEach((trigger) => {
-          const disable = trigger.getAttribute("data-parallax-disable");
-          if (
-            (disable === "mobile" && isMobile) ||
-            (disable === "mobileLandscape" && isMobileLandscape) ||
-            (disable === "tablet" && isTablet)
-          ) return;
-          const target = trigger.querySelector('[data-parallax="target"]') || trigger;
-          const direction = trigger.getAttribute("data-parallax-direction") || "vertical";
-          const prop = direction === "horizontal" ? "xPercent" : "yPercent";
-          const scrubAttr = trigger.getAttribute("data-parallax-scrub");
-          const scrub = scrubAttr ? parseFloat(scrubAttr) : true;
-          const startAttr = trigger.getAttribute("data-parallax-start");
-          const startVal = startAttr !== null ? parseFloat(startAttr) : 20;
-          const endAttr = trigger.getAttribute("data-parallax-end");
-          const endVal = endAttr !== null ? parseFloat(endAttr) : -20;
-          const scrollStartRaw = trigger.getAttribute("data-parallax-scroll-start") || "top bottom";
-          const scrollStart = `clamp(${scrollStartRaw})`;
-          const scrollEndRaw = trigger.getAttribute("data-parallax-scroll-end") || "bottom top";
-          const scrollEnd = `clamp(${scrollEndRaw})`;
-          gsap.fromTo(target, { [prop]: startVal }, {
-            [prop]: endVal, ease: "none",
-            scrollTrigger: { trigger, start: scrollStart, end: scrollEnd, scrub }
-          });
-        });
-      });
-      return () => ctx.revert();
-    }
-  );
-}
-
-function initMobileMenu() {
-  if (mobileMenuCleanup) { mobileMenuCleanup(); mobileMenuCleanup = null; }
-  const menuIcon = document.querySelector('[data-nav-toggle]');
-  const wrapper  = document.querySelector('[data-nav-wrapper]');
-  if (!menuIcon || !wrapper) return;
-
-  const OPEN_D = 0.4;
-  const CLOSE_D = 0.5;
-  const SUB_D = 0.5;
-  const ICON_D = 0.2;
-  const EASE = 'power4.out';
-
-  const lineTop    = document.querySelector('[data-nav-line="top"]');
-  const lineMid    = document.querySelector('[data-nav-line="middle"]');
-  const lineBottom = document.querySelector('[data-nav-line="bottom"]');
-
-  const submenus = Array.from(document.querySelectorAll('[data-nav-submenu]'));
-  const subMap = {};
-  submenus.forEach(sub => {
-    const key = sub.getAttribute('data-nav-submenu');
-    const h   = parseFloat(sub.getAttribute('data-nav-height')) || 0;
-    subMap[key] = { el: sub, height: h };
-  });
-
-  gsap.set(wrapper, { height: 0, overflow: 'hidden' });
-  submenus.forEach(sub => gsap.set(sub, { height: 0, overflow: 'hidden' }));
-  if (lineTop)    gsap.set(lineTop,    { rotate: 0, y: 0 });
-  if (lineMid)    gsap.set(lineMid,    { opacity: 1 });
-  if (lineBottom) gsap.set(lineBottom, { rotate: 0, y: 0 });
-
-  let menuOpen = false;
-  let activeSub = null;
-
-  const closeActiveSub = (instant = false) => {
-    if (!activeSub) return;
-    const entry = subMap[activeSub];
-    if (entry) {
-      if (instant) gsap.set(entry.el, { height: 0 });
-      else gsap.to(entry.el, { height: 0, duration: SUB_D, ease: EASE });
-    }
-    activeSub = null;
-  };
-
-  const iconToX = () => {
-    if (lineMid)    gsap.to(lineMid,    { opacity: 0, duration: ICON_D, ease: EASE });
-    if (lineTop)    gsap.to(lineTop,    { y: 8,  rotate: 45,  duration: ICON_D, ease: EASE });
-    if (lineBottom) gsap.to(lineBottom, { y: -8, rotate: -45, duration: ICON_D, ease: EASE });
-  };
-
-  const iconToHamburger = (instant = false) => {
-    if (instant) {
-      if (lineMid)    gsap.set(lineMid,    { opacity: 1 });
-      if (lineTop)    gsap.set(lineTop,    { y: 0, rotate: 0 });
-      if (lineBottom) gsap.set(lineBottom, { y: 0, rotate: 0 });
-      return;
-    }
-    if (lineMid)    gsap.to(lineMid,    { opacity: 1, duration: ICON_D, ease: EASE });
-    if (lineTop)    gsap.to(lineTop,    { y: 0, rotate: 0, duration: ICON_D, ease: EASE });
-    if (lineBottom) gsap.to(lineBottom, { y: 0, rotate: 0, duration: ICON_D, ease: EASE });
-  };
-
-  const openMenu = () => {
-    menuOpen = true;
-    menuIcon.classList.add('is-open');
-    iconToX();
-    gsap.to(wrapper, { height: 'auto', duration: OPEN_D, ease: EASE });
-  };
-
-  const closeMenu = (instant = false) => {
-    if (!menuOpen) return;
-    menuOpen = false;
-    menuIcon.classList.remove('is-open');
-    closeActiveSub(instant);
-    iconToHamburger(instant);
-    if (instant) gsap.set(wrapper, { height: 0 });
-    else gsap.to(wrapper, { height: 0, duration: CLOSE_D, ease: EASE });
-  };
-
-  mobileMenuClose = closeMenu;
-
-  const onMenuIconClick = (e) => {
-    e.preventDefault();
-    if (menuOpen) closeMenu(); else openMenu();
-  };
-  menuIcon.addEventListener('click', onMenuIconClick);
-
-  const handlers = [];
-  const triggers = Array.from(document.querySelectorAll('[data-nav-trigger]'));
-  triggers.forEach(link => {
-    const key = link.getAttribute('data-nav-trigger');
-    const entry = subMap[key];
-    if (!entry) return;
-    const onClick = (e) => {
-      e.preventDefault();
-      if (activeSub === key) {
-        gsap.to(entry.el, { height: 0, duration: SUB_D, ease: EASE });
-        activeSub = null;
-        return;
-      }
-      if (activeSub) {
-        const prev = subMap[activeSub];
-        if (prev) gsap.to(prev.el, { height: 0, duration: SUB_D, ease: EASE });
-      }
-      gsap.to(entry.el, { height: entry.height, duration: SUB_D, ease: EASE });
-      activeSub = key;
-    };
-    link.addEventListener('click', onClick);
-    handlers.push({ el: link, fn: onClick });
-  });
-
-  mobileMenuCleanup = () => {
-    menuIcon.removeEventListener('click', onMenuIconClick);
-    handlers.forEach(({ el, fn }) => el.removeEventListener('click', fn));
-    mobileMenuClose = null;
-  };
-}
-
-function initBannerMarquee() {
-  if (bannerAnim) { bannerAnim.kill(); bannerAnim = null; }
-  if (bannerST)   { bannerST.kill();   bannerST = null; }
-  const banners = nextPage.querySelectorAll('.banner-text');
-  if (!banners.length) return;
-  gsap.set(banners, { xPercent: 0 });
-
-  let xp = 0;
-  let direction = 1;
-  const SPEED = 100 / 30;
-
-  const tick = (time, dt) => {
-    xp -= direction * SPEED * (dt / 1000);
-    if (xp <= -100) xp += 100;
-    if (xp > 0)     xp -= 100;
-    gsap.set(banners, { xPercent: xp });
-  };
-  gsap.ticker.add(tick);
-
-  bannerAnim = { kill: () => gsap.ticker.remove(tick) };
-
-  bannerST = ScrollTrigger.create({
-    trigger: banners[0].parentElement,
-    start: 'top bottom',
-    end: 'bottom top',
-    onUpdate: (self) => {
-      direction = self.direction === -1 ? -1 : 1;
-    }
-  });
-}
-
-function initMenuPhotoMouse() {
-  if (menuPhotoCleanup) { menuPhotoCleanup(); menuPhotoCleanup = null; }
-  const items = nextPage.querySelectorAll('.menu-item');
-  if (!items.length) return;
-  const fotos = Array.from(nextPage.querySelectorAll('.menu-foto'));
-  if (!fotos.length) return;
-  gsap.set(fotos, { opacity: 0, display: 'none', xPercent: -100, y: 0 });
-
-  let targetX = 0, targetY = 0.5, smoothX = 0, smoothY = 0.5;
-  const SMOOTH = 0.08;
-
-  const onMove = (e) => {
-    targetX = e.clientX / window.innerWidth;
-    targetY = e.clientY / window.innerHeight;
-  };
-  const tickerFn = () => {
-    smoothX += (targetX - smoothX) * SMOOTH;
-    smoothY += (targetY - smoothY) * SMOOTH;
-    gsap.set(fotos, {
-      xPercent: -100 + smoothX * 100,
-      y: (0.5 - smoothY) * window.innerHeight
-    });
-  };
-
-  window.addEventListener('mousemove', onMove);
-  gsap.ticker.add(tickerFn);
-
-  const hovers = [];
-  items.forEach((item) => {
-    const foto = item.querySelector('.menu-foto');
-    if (!foto) return;
-    const enter = () => {
-      gsap.killTweensOf(foto, 'opacity');
-      gsap.set(foto, { display: 'block' });
-      gsap.to(foto, { opacity: 1, duration: 0.3, ease: 'power3.out' });
-    };
-    const leave = () => {
-      gsap.killTweensOf(foto, 'opacity');
-      gsap.to(foto, {
-        opacity: 0, duration: 0.3, ease: 'power3.out',
-        onComplete: () => gsap.set(foto, { display: 'none' })
-      });
-    };
-    item.addEventListener('mouseenter', enter);
-    item.addEventListener('mouseleave', leave);
-    hovers.push({ item, enter, leave });
-  });
-
-  menuPhotoCleanup = () => {
-    window.removeEventListener('mousemove', onMove);
-    gsap.ticker.remove(tickerFn);
-    hovers.forEach(({ item, enter, leave }) => {
-      item.removeEventListener('mouseenter', enter);
-      item.removeEventListener('mouseleave', leave);
-    });
-  };
-}
-
-function initLocatieSlider() {
-  if (listSlider && listSlider.length) {
-    try {
-      if (listSlider.hasClass('slick-initialized')) listSlider.slick('unslick');
-    } catch (e) {}
-    listSlider = null;
-  }
-  if (typeof window.jQuery === 'undefined') return;
-  const $list = window.jQuery(nextPage).find('.list');
-  if (!$list.length || typeof $list.slick !== 'function') return;
-  $list.slick({
-    dots: false, speed: 700, infinite: true,
-    slidesToShow: 3, slidesToScroll: 1, arrows: false, touchThreshold: 100,
-    responsive: [
-      { breakpoint: 767, settings: { slidesToShow: 2 } },
-      { breakpoint: 479, settings: { slidesToShow: 1 } }
-    ]
-  });
-  listSlider = $list;
-}
-
-function initNavbarScroll() {
-  const navWrapper = document.querySelector('.nav-wrapper');
-  const navLogos = document.querySelectorAll('.navbar3_logo');
-  if (!navWrapper) return;
-  const LARGE = { wrapperHeight: '5.5rem', logoSize: 60 };
-  const SMALL = { wrapperHeight: '3rem',  logoSize: 30 };
-  const THRESHOLD = 50;
-  const DURATION = 0.5;
-  const EASE = 'power4.out';
-  let state = window.scrollY > THRESHOLD ? 'small' : 'large';
-  if (state === 'small') {
-    gsap.set(navWrapper, { height: SMALL.wrapperHeight });
-    gsap.set(navLogos, { width: SMALL.logoSize, height: SMALL.logoSize });
-  } else {
-    gsap.set(navWrapper, { height: LARGE.wrapperHeight });
-    gsap.set(navLogos, { width: LARGE.logoSize, height: LARGE.logoSize });
-  }
-  const navToSmall = () => {
-    gsap.to(navWrapper, { height: SMALL.wrapperHeight, duration: DURATION, ease: EASE });
-    gsap.to(navLogos,   { width: SMALL.logoSize, height: SMALL.logoSize, duration: DURATION, ease: EASE });
-  };
-  const navToLarge = () => {
-    gsap.to(navWrapper, { height: LARGE.wrapperHeight, duration: DURATION, ease: EASE });
-    gsap.to(navLogos,   { width: LARGE.logoSize, height: LARGE.logoSize, duration: DURATION, ease: EASE });
-  };
-  window.addEventListener('scroll', () => {
-    const y = window.scrollY;
-    if (y > THRESHOLD && state === 'large') { state = 'small'; navToSmall(); }
-    else if (y <= THRESHOLD && state === 'small') { state = 'large'; navToLarge(); }
-  }, { passive: true });
-}
-
-function initNavSubmenus() {
-  const groups = ['menus', 'locatie', 'zakelijk', 'events', 'beaune'];
-  const allSubmenus = document.querySelectorAll('.submenu');
-  if (!allSubmenus.length) return;
-  const OPEN_HEIGHT = 46;
-  const DURATION = 0.2;
-  const EASE = 'power4.out';
-  gsap.set(allSubmenus, { height: 0, overflow: 'hidden' });
-  const openGroup = (key) => {
-    const target = document.querySelector(`.submenu.${key}`);
-    if (!target) return;
-    allSubmenus.forEach((s) => {
-      if (s !== target) gsap.to(s, { height: 0, duration: DURATION, ease: EASE });
-    });
-    gsap.to(target, { height: OPEN_HEIGHT, duration: DURATION, ease: EASE });
-  };
-  groups.forEach((key) => {
-    const link = document.querySelector(`.navbar-link.${key}`);
-    if (!link) return;
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      openGroup(key);
-    });
-  });
-  allSubmenus.forEach((submenu) => {
-    submenu.addEventListener('mouseleave', () => {
-      gsap.to(submenu, { height: 0, duration: DURATION, ease: EASE });
-    });
-  });
-}
-
-function initWelcomingWordsLoader() {
-  const loadingContainer = document.querySelector('[data-loading-container]');
-  if (!loadingContainer) return;
-  const loadingWords = loadingContainer.querySelector('[data-loading-words]');
-  const wordsTarget = loadingWords.querySelector('[data-loading-words-target]');
-  const words = loadingWords.getAttribute('data-loading-words').split(',').map(w => w.trim());
-
-  const tl = gsap.timeline();
-  tl.set(loadingWords, { yPercent: 50 });
-  tl.to(loadingWords, { opacity: 1, yPercent: 0, duration: 1.5, ease: "Expo.easeInOut" });
-  words.forEach(word => {
-    tl.call(() => { wordsTarget.textContent = word; }, null, '+=0.15');
-  });
-  tl.to(loadingWords, { opacity: 0, yPercent: -75, duration: 0.8, ease: "Expo.easeIn" });
-  tl.to(loadingContainer, { autoAlpha: 0, duration: 0.6, ease: "Power1.easeInOut" }, "+ -0.2");
-}
-
-// ===========================================
-// BARBA INIT FUNCTIONS
-// ===========================================
+gsap.defaults({ ease: "osmo", duration: durationDefault });
+// -----------------------------------------
+// FUNCTION REGISTRY
+// -----------------------------------------
 function initOnceFunctions() {
   initLenis();
   if (onceFunctionsInitialized) return;
   onceFunctionsInitialized = true;
-  initNavbarScroll();
-  initNavSubmenus();
-  initBannerMarquee();
-  initMenuPhotoMouse();
-  initLocatieSlider();
-  initBgVideos();
-  initGlobalParallax();
-  initMobileMenu();
 }
-
-function initBeforeEnterFunctions(next) { nextPage = next || document; }
-
+function initBeforeEnterFunctions(next) {
+  nextPage = next || document;
+}
 function initAfterEnterFunctions(next) {
   nextPage = next || document;
-  initBannerMarquee();
-  initMenuPhotoMouse();
-  initLocatieSlider();
-  initBgVideos();
-  initGlobalParallax();
-  initMobileMenu();
-  initWebflowRuntime();          
+  initCheckSectionThemeScroll(next);
+  initNavbarHideOnScroll(next);
+  if (next.querySelector('[data-draggable-marquee-init]')) initDraggableMarquee(next);
+  if (next.querySelector('.section-middelpunt')) initMiddelpuntScroll(next);
   if (hasLenis) lenis.resize();
   if (hasScrollTrigger) ScrollTrigger.refresh();
+  if (document.querySelector('.navbar-link-large')) initNavbarLinkHover(document);
+  if (next.querySelector('[data-route-origin]')) initRouteToBankoh(next);
+  if (next.querySelector('.faq3_accordion')) initFaqAccordion(next);
+  if (next.querySelector('.bnackup')) initLogoReveal(next);
+  if (next.querySelector('[data-highlight-text]')) initHighlightText(next);
+  if (next.querySelector('[data-parallax="trigger"]')) initGlobalParallax(next);
+  if (next.querySelector('[data-toc-wrap]')) initTableOfContents(next);
+  if (next.querySelector('[data-read-time-article]')) initDisplayReadTime(next);
 }
-
-// ===========================================
-// BARBA TRANSITIONS
-// ===========================================
+// -----------------------------------------
+// PAGE TRANSITIONS (parallax slide)
+// -----------------------------------------
 function runPageOnceAnimation(next) {
   const tl = gsap.timeline();
-  tl.call(() => { resetPage(next); }, null, 0);
+  tl.call(() => resetPage(next), null, 0);
   return tl;
 }
-
 function runPageLeaveAnimation(current, next) {
   const transitionWrap = document.querySelector("[data-transition-wrap]");
-  const transitionDark = transitionWrap ? transitionWrap.querySelector("[data-transition-dark]") : null;
-  const tl = gsap.timeline({ onComplete: () => { current.remove(); } });
-  if (reducedMotion) return tl.set(current, { autoAlpha: 0 });
-  if (transitionWrap) tl.set(transitionWrap, { zIndex: 2 });
-  if (transitionDark) {
-    tl.fromTo(transitionDark, { autoAlpha: 0 }, {
-      autoAlpha: 0.8, duration: 1.2, ease: "parallax"
-    }, 0);
+  const transitionDark = transitionWrap
+    ? transitionWrap.querySelector("[data-transition-dark]")
+    : null;
+  const tl = gsap.timeline({ onComplete: () => current.remove() });
+
+  if (reducedMotion || !transitionWrap) {
+    return tl.set(current, { autoAlpha: 0 });
   }
-  tl.fromTo(current, { y: "0vh", filter: "blur(0px)" }, {
-    y: "-25vh", filter: "blur(8px)", duration: 1.2, ease: "parallax"
-  }, 0);
-  if (transitionDark) tl.set(transitionDark, { autoAlpha: 0 });
+
+  tl.set(transitionWrap, { zIndex: 2 }, 0);
+  if (transitionDark) {
+    tl.fromTo(transitionDark,
+      { autoAlpha: 0 },
+      { autoAlpha: 0.8, duration: 1.2, ease: "parallax" },
+      0
+    );
+  }
+  tl.fromTo(current,
+    { y: "0vh", filter: "blur(0px)" },
+    { y: "-25vh", filter: "blur(8px)", duration: 1.2, ease: "parallax" },
+    0
+  );
+  if (transitionDark) {
+    tl.set(transitionDark, { autoAlpha: 0 });
+  }
   return tl;
 }
-
 function runPageEnterAnimation(next) {
+  const transitionWrap = document.querySelector("[data-transition-wrap]");
   const tl = gsap.timeline();
-  if (reducedMotion) {
+
+  if (reducedMotion || !transitionWrap) {
+    tl.call(reinitWebflow, null, 0);
     tl.set(next, { autoAlpha: 1 });
     tl.add("pageReady");
     tl.call(resetPage, [next], "pageReady");
     return new Promise(resolve => tl.call(resolve, null, "pageReady"));
   }
+
   tl.add("startEnter", 0);
-  tl.set(next, { zIndex: 3 });
-  tl.fromTo(next, { y: "100vh" }, {
-    y: "0vh", duration: 1.2, clearProps: "all", ease: "parallax"
+  // next staat off-screen onderaan: bind IX2/IX3 hier, vóór hij in beeld schuift
+  tl.set(next, { zIndex: 3, y: "100vh" }, "startEnter");
+  tl.call(reinitWebflow, null, "startEnter");
+  tl.to(next, {
+    y: "0vh",
+    duration: 1.2,
+    clearProps: "all",
+    ease: "parallax"
   }, "startEnter");
   tl.add("pageReady");
   tl.call(resetPage, [next], "pageReady");
   return new Promise(resolve => tl.call(resolve, null, "pageReady"));
 }
-
-// ===========================================
+// -----------------------------------------
+// TABLE OF CONTENTS
+// -----------------------------------------
+function initTableOfContents(scope) {
+  scope = scope || document;
+  scope.querySelectorAll('[data-toc-wrap]').forEach(root => {
+    if (root.dataset.tocInit === 'true') return;
+    const contentEl = root.querySelector('[data-toc-content]');
+    const listEl = root.querySelector('[data-toc-list]');
+    const templateLink = listEl?.querySelector('[data-toc-link]');
+    if (!contentEl || !listEl || !templateLink) return;
+    const levels = (root.getAttribute('data-toc-levels') || 'h2,h3').split(',').map(l => l.trim().toLowerCase()).filter(l => /^h[1-6]$/.test(l));
+    const levelSelector = levels.join(', ');
+    if (!levelSelector) return;
+    const offset = parseInt(root.getAttribute('data-toc-offset')) || 50;
+    const marker = '{skip}';
+    const slugCounts = new Map();
+    function slugify(text) {
+      let slug = text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      if (!slug) slug = 'section';
+      const count = slugCounts.get(slug) || 0;
+      slugCounts.set(slug, count + 1);
+      return count === 0 ? slug : slug + '-' + (count + 1);
+    }
+    function stripMarker(el) {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (node.textContent.includes(marker)) {
+          node.textContent = node.textContent.replace(marker, '').trim();
+        }
+      }
+    }
+    const allHeadings = Array.from(contentEl.querySelectorAll(levelSelector));
+    const headings = [];
+    allHeadings.forEach(heading => {
+      if (heading.hasAttribute('data-toc-ignore')) return;
+      if (heading.textContent.includes(marker)) {
+        stripMarker(heading);
+        return;
+      }
+      const text = heading.textContent.trim();
+      if (!text) return;
+      headings.push(heading);
+    });
+    if (!headings.length) return;
+    headings.forEach(heading => {
+      if (!heading.id) {
+        heading.id = slugify(heading.textContent.trim());
+      }
+    });
+    const tocLinks = [];
+    headings.forEach(heading => {
+      const clone = templateLink.cloneNode(true);
+      const textTarget = clone.querySelector('[data-toc-text]') || clone;
+      textTarget.textContent = heading.textContent.trim();
+      clone.href = '#' + heading.id;
+      clone.removeAttribute('data-toc-link');
+      clone.setAttribute('data-toc-item', '');
+      const level = heading.tagName.charAt(1);
+      clone.setAttribute('data-toc-depth', level);
+      listEl.appendChild(clone);
+      tocLinks.push(clone);
+    });
+    listEl.querySelectorAll('[data-toc-link]').forEach(el => el.remove());
+    if (typeof ScrollTrigger !== 'undefined') {
+      function setActive(index) {
+        tocLinks.forEach(link => link.setAttribute('data-toc-status', ''));
+        if (tocLinks[index]) tocLinks[index].setAttribute('data-toc-status', 'active');
+      }
+      headings.forEach((heading, i) => {
+        const nextHeading = headings[i + 1];
+        ScrollTrigger.create({
+          trigger: heading,
+          start: 'top ' + (offset + 1) + 'px',
+          endTrigger: nextHeading || contentEl,
+          end: nextHeading ? 'top ' + (offset + 1) + 'px' : 'bottom top',
+          onToggle: self => {
+            if (self.isActive) setActive(i);
+          }
+        });
+      });
+      if (window.scrollY <= headings[0].getBoundingClientRect().top + window.scrollY - offset) {
+        setActive(0);
+      }
+      // Webfonts/afbeeldingen verschuiven heading-posities na init: herbereken zodra fonts klaar zijn
+      if (document.fonts?.ready) {
+        document.fonts.ready.then(() => ScrollTrigger.refresh());
+      }
+    }
+    listEl.addEventListener('click', e => {
+      const link = e.target.closest('[data-toc-item]');
+      if (!link) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const id = link.getAttribute('href')?.slice(1);
+      const target = document.getElementById(id);
+      if (!target) return;
+      if (typeof lenis !== 'undefined' && typeof lenis.scrollTo === 'function') {
+        lenis.scrollTo(target, { offset: -offset });
+      } else {
+        const y = target.getBoundingClientRect().top + window.scrollY - offset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    });
+    root.dataset.tocInit = 'true';
+  });
+}
+// -----------------------------------------
+// DISPLAY READ TIME
+// -----------------------------------------
+function initDisplayReadTime(scope) {
+  scope = scope || document;
+  const wordsPerMinute = 200;
+  const articles = scope.querySelectorAll('[data-read-time-article]');
+  articles.forEach((article, index) => {
+    if (article.dataset.readTimeInit === 'true') return;
+    const matchValue = article.getAttribute('data-read-time-article');
+    const text = article.textContent.trim();
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const minutes = Math.max(1, Math.ceil(wordCount / wordsPerMinute));
+    let targets;
+    if (matchValue) {
+      targets = scope.querySelectorAll(`[data-read-time-target="${matchValue}"]`);
+    } else {
+      const emptyTargets = scope.querySelectorAll('[data-read-time-target=""], [data-read-time-target]:not([data-read-time-target*="-"])');
+      targets = emptyTargets[index] ? [emptyTargets[index]] : [];
+    }
+    targets.forEach((target) => {
+      target.textContent = `${minutes}`;
+    });
+    article.dataset.readTimeInit = 'true';
+  });
+}
+// -----------------------------------------
 // BARBA HOOKS
-// ===========================================
+// -----------------------------------------
 barba.hooks.beforeEnter(data => {
+  const parsed = new DOMParser().parseFromString(data.next.html, "text/html");
+  const wfPage = parsed.documentElement.getAttribute("data-wf-page");
+  if (wfPage) document.documentElement.setAttribute("data-wf-page", wfPage);
   gsap.set(data.next.container, { position: "fixed", top: 0, left: 0, right: 0 });
   if (lenis && typeof lenis.stop === "function") lenis.stop();
-  initBeforeEnterFunctions(data.next.container);
-  if (loaderShouldBeHidden) {
-    const containers = data.next.container.querySelectorAll('[data-loading-container]');
-    containers.forEach(c => gsap.set(c, { autoAlpha: 0 }));
+  // Voorkom dat reinitWebflow de load-animaties op de wegschietende pagina opnieuw afspeelt
+  if (data.current && data.current.container) {
+    data.current.container.querySelectorAll('[data-w-id]').forEach(el => el.removeAttribute('data-w-id'));
   }
+  initBeforeEnterFunctions(data.next.container);
   applyThemeFrom(data.next.container);
 });
-
-barba.hooks.beforeLeave(() => {
-  if (mobileMenuClose) mobileMenuClose(false);
-});
-
 barba.hooks.afterLeave(() => {
   if (hasScrollTrigger) ScrollTrigger.getAll().forEach(t => t.kill());
-  if (menuPhotoCleanup) { menuPhotoCleanup(); menuPhotoCleanup = null; }
-  if (bannerAnim)       { bannerAnim.kill();  bannerAnim = null; }
-  if (mobileMenuCleanup) { mobileMenuCleanup(); mobileMenuCleanup = null; }
-  if (listSlider && listSlider.length) {
-    try {
-      if (listSlider.hasClass('slick-initialized')) listSlider.slick('unslick');
-    } catch (e) {}
-    listSlider = null;
-  }
 });
-
-barba.hooks.enter(data => { initBarbaNavUpdate(data); });
-
+barba.hooks.enter(data => {
+  initBarbaNavUpdate(data);
+});
 barba.hooks.afterEnter(data => {
-  initWebflowRuntime(data);      
   initAfterEnterFunctions(data.next.container);
   if (hasLenis) { lenis.resize(); lenis.start(); }
   if (hasScrollTrigger) ScrollTrigger.refresh();
-  loaderShouldBeHidden = true;
 });
-
-// ===========================================
-// BARBA INIT
-// ===========================================
 barba.init({
   debug: true,
   timeout: 7000,
@@ -585,20 +278,43 @@ barba.init({
     sync: true,
     async once(data) {
       initOnceFunctions();
-      return runPageOnceAnimation(data.next.container);
+      initAfterEnterFunctions(data.next.container);
+      const tl = runPageOnceAnimation(data.next.container);
+      if (hasLenis) { lenis.resize(); lenis.start(); }
+      if (hasScrollTrigger) ScrollTrigger.refresh();
+      return tl;
     },
-    async leave(data) {
-      return runPageLeaveAnimation(data.current.container, data.next.container);
-    },
-    async enter(data) {
-      return runPageEnterAnimation(data.next.container);
-    }
+    async leave(data) { return runPageLeaveAnimation(data.current.container, data.next.container); },
+    async enter(data) { return runPageEnterAnimation(data.next.container); }
   }]
 });
-
-// ===========================================
+// -----------------------------------------
+// WEBFLOW IX2 + IX3 RE-INIT
+// -----------------------------------------
+function reinitWebflow() {
+  if (!window.Webflow) return;
+  try {
+    window.Webflow.destroy();
+    window.Webflow.ready();
+    const req = window.Webflow.require;
+    if (req) {
+      const ix2 = req("ix2");
+      if (ix2 && typeof ix2.init === "function") ix2.init();
+      const ix3 = req("ix3");
+      if (ix3 && typeof ix3.init === "function") ix3.init();
+    }
+    document.dispatchEvent(new Event("readystatechange"));
+  } catch (e) {
+    console.warn("Webflow re-init failed:", e);
+  }
+}
+// -----------------------------------------
 // HELPERS
-// ===========================================
+// -----------------------------------------
+const themeConfig = {
+  light: { nav: "dark", transition: "light" },
+  dark:  { nav: "light", transition: "dark" }
+};
 function applyThemeFrom(container) {
   const pageTheme = container?.dataset?.pageTheme || "light";
   const config = themeConfig[pageTheme] || themeConfig.light;
@@ -608,43 +324,438 @@ function applyThemeFrom(container) {
   const nav = document.querySelector('[data-theme-nav]');
   if (nav) nav.dataset.themeNav = config.nav;
 }
-
 function initLenis() {
   if (lenis) return;
   if (!hasLenis) return;
-  lenis = new Lenis({ lerp: 0.165, wheelMultiplier: 1.25 });
+  lenis = new Lenis({ lerp: 0.08, wheelMultiplier: 0.9 });
   if (hasScrollTrigger) lenis.on("scroll", ScrollTrigger.update);
-  gsap.ticker.add((time) => { lenis.raf(time * 1000); });
+  gsap.ticker.add(time => lenis.raf(time * 1000));
   gsap.ticker.lagSmoothing(0);
 }
-
 function resetPage(container) {
   window.scrollTo(0, 0);
   gsap.set(container, { clearProps: "position,top,left,right" });
   if (hasLenis) { lenis.resize(); lenis.start(); }
 }
-
 function initBarbaNavUpdate(data) {
-  const tpl = document.createElement('template');
+  const tpl = document.createElement("template");
   tpl.innerHTML = data.next.html.trim();
-  const nextNodes = tpl.content.querySelectorAll('[data-barba-update]');
-  const currentNodes = document.querySelectorAll('nav [data-barba-update]');
+  const nextNodes = tpl.content.querySelectorAll("[data-barba-update]");
+  const currentNodes = document.querySelectorAll("nav [data-barba-update]");
   currentNodes.forEach((curr, index) => {
     const next = nextNodes[index];
     if (!next) return;
-    const newStatus = next.getAttribute('aria-current');
-    if (newStatus !== null) curr.setAttribute('aria-current', newStatus);
-    else curr.removeAttribute('aria-current');
-    const newClassList = next.getAttribute('class') || '';
-    curr.setAttribute('class', newClassList);
+    const newStatus = next.getAttribute("aria-current");
+    if (newStatus !== null) curr.setAttribute("aria-current", newStatus);
+    else curr.removeAttribute("aria-current");
+    curr.setAttribute("class", next.getAttribute("class") || "");
   });
 }
-
-// ===========================================
-// WELCOMING WORDS LOADER (DOMContentLoaded safe)
-// ===========================================
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initWelcomingWordsLoader);
-} else {
-  initWelcomingWordsLoader();
+// -----------------------------------------
+// THEME SECTION ON SCROLL
+// -----------------------------------------
+let _themeScrollCleanup = null;
+function initCheckSectionThemeScroll(scope) {
+  if (_themeScrollCleanup) _themeScrollCleanup();
+  let ticking = false;
+  let currentTheme = null;
+  let currentBg = null;
+  const navBarHeight = document.querySelector('[data-nav-bar-height]');
+  const themeObserverOffset = navBarHeight ? navBarHeight.offsetHeight / 2 : 0;
+  const themeSections = scope.querySelectorAll('[data-theme-section]');
+  const themeNavElements = document.querySelectorAll('[data-theme-nav]');
+  const bgNavElements = document.querySelectorAll('[data-bg-nav]');
+  function updateElements(elements, attribute, value) {
+    elements.forEach(el => el.setAttribute(attribute, value));
+  }
+  function checkThemeSection() {
+    for (const section of themeSections) {
+      const rect = section.getBoundingClientRect();
+      if (rect.top <= themeObserverOffset && rect.bottom >= themeObserverOffset) {
+        const themeActive = section.getAttribute('data-theme-section');
+        const bgActive = section.getAttribute('data-bg-section');
+        if (themeActive !== currentTheme) {
+          updateElements(themeNavElements, 'data-theme-nav', themeActive);
+          currentTheme = themeActive;
+        }
+        if (bgActive && bgActive !== currentBg) {
+          updateElements(bgNavElements, 'data-bg-nav', bgActive);
+          currentBg = bgActive;
+        }
+        break;
+      }
+    }
+    ticking = false;
+  }
+  const onScroll = () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(checkThemeSection); }
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  checkThemeSection();
+  _themeScrollCleanup = () => {
+    window.removeEventListener('scroll', onScroll);
+    window.removeEventListener('resize', onScroll);
+  };
+}
+// -----------------------------------------
+// NAVBAR HIDE ON SCROLL
+// -----------------------------------------
+let _navbarST = null;
+function initNavbarHideOnScroll(scope) {
+  if (_navbarST) { _navbarST.kill(); _navbarST = null; }
+  const navbar = (scope && scope.querySelector(".navbar")) || document.querySelector(".navbar");
+  if (!navbar) return;
+  let isHidden = false;
+  gsap.set(navbar, { y: 0 });
+  const navHeight = navbar.offsetHeight;
+  _navbarST = ScrollTrigger.create({
+    start: 0,
+    end: "max",
+    onUpdate: (self) => {
+      const currentScrollY = self.scroll();
+      const velocity = self.getVelocity();
+      if (currentScrollY < 50) {
+        if (isHidden) {
+          gsap.to(navbar, { y: 0, duration: 0.5, ease: "power3.out" });
+          isHidden = false;
+        }
+        return;
+      }
+      if (Math.abs(velocity) < 100) return;
+      if (velocity > 0 && !isHidden) {
+        gsap.to(navbar, { y: -navHeight, duration: 0.5, ease: "power3.inOut" });
+        isHidden = true;
+      } else if (velocity < 0 && isHidden) {
+        gsap.to(navbar, { y: 0, duration: 0.5, ease: "power3.out" });
+        isHidden = false;
+      }
+    },
+  });
+}
+// -----------------------------------------
+// DRAGGABLE MARQUEE (scroll-driven direction)
+// -----------------------------------------
+function initDraggableMarquee(scope) {
+  scope = scope || document;
+  const wrappers = scope.querySelectorAll("[data-draggable-marquee-init]");
+  const getNumberAttr = (el, name, fallback) => {
+    const value = parseFloat(el.getAttribute(name));
+    return Number.isFinite(value) ? value : fallback;
+  };
+  wrappers.forEach((wrapper) => {
+    if (wrapper.getAttribute("data-draggable-marquee-init") === "initialized") return;
+    const collection = wrapper.querySelector("[data-draggable-marquee-collection]");
+    const list = wrapper.querySelector("[data-draggable-marquee-list]");
+    if (!collection || !list) return;
+    const duration = getNumberAttr(wrapper, "data-duration", 20);
+    const multiplier = getNumberAttr(wrapper, "data-multiplier", 8);
+    const sensitivity = getNumberAttr(wrapper, "data-sensitivity", 0.004);
+    const wrapperWidth = wrapper.getBoundingClientRect().width;
+    const listWidth = list.scrollWidth || list.getBoundingClientRect().width;
+    if (!wrapperWidth || !listWidth) return;
+    const minRequiredWidth = wrapperWidth + listWidth + 2;
+    while (collection.scrollWidth < minRequiredWidth) {
+      const listClone = list.cloneNode(true);
+      listClone.setAttribute("data-draggable-marquee-clone", "");
+      listClone.setAttribute("aria-hidden", "true");
+      collection.appendChild(listClone);
+    }
+    const wrapX = gsap.utils.wrap(-listWidth, 0);
+    gsap.set(collection, { x: 0 });
+    const marqueeLoop = gsap.to(collection, {
+      x: -listWidth,
+      duration,
+      ease: "none",
+      repeat: -1,
+      modifiers: {
+        x: (x) => wrapX(parseFloat(x)) + "px"
+      }
+    });
+    let scrollDirection = 1;
+    let dragInfluence = 0;
+    let currentTimeScale = 1;
+    let lastDirAttr = "left";
+    let isInView = true;
+    wrapper.setAttribute("data-direction", "left");
+    const tickerFn = () => {
+      if (!wrapper.isConnected) {
+        gsap.ticker.remove(tickerFn);
+        if (cleanupScroll) cleanupScroll();
+        return;
+      }
+      if (Math.abs(dragInfluence) > 0.01) dragInfluence *= 0.92;
+      else dragInfluence = 0;
+      const target = scrollDirection + dragInfluence;
+      currentTimeScale += (target - currentTimeScale) * 0.12;
+      marqueeLoop.timeScale(currentTimeScale);
+      const dir = currentTimeScale < 0 ? "right" : "left";
+      if (dir !== lastDirAttr) {
+        wrapper.setAttribute("data-direction", dir);
+        lastDirAttr = dir;
+      }
+    };
+    gsap.ticker.add(tickerFn);
+    const marqueeObserver = Observer.create({
+      target: wrapper,
+      type: "pointer,touch",
+      preventDefault: true,
+      onChangeX: (e) => {
+        if (!isInView) return;
+        const velocity = e.velocityX * -sensitivity;
+        dragInfluence = gsap.utils.clamp(-multiplier, multiplier, velocity);
+      }
+    });
+    let lastScrollY = window.scrollY;
+    const onScroll = () => {
+      const currentY = window.scrollY;
+      const delta = currentY - lastScrollY;
+      if (Math.abs(delta) < 1) return;
+      scrollDirection = delta > 0 ? 1 : -1;
+      lastScrollY = currentY;
+    };
+    let cleanupScroll;
+    if (typeof lenis !== "undefined" && lenis && typeof lenis.on === "function") {
+      lenis.on("scroll", onScroll);
+      cleanupScroll = () => { try { lenis.off("scroll", onScroll); } catch(e){} };
+    } else {
+      window.addEventListener("scroll", onScroll, { passive: true });
+      cleanupScroll = () => window.removeEventListener("scroll", onScroll);
+    }
+    ScrollTrigger.create({
+      trigger: wrapper,
+      start: "top bottom",
+      end: "bottom top",
+      onEnter:     () => { isInView = true;  marqueeLoop.resume(); marqueeObserver.enable(); },
+      onEnterBack: () => { isInView = true;  marqueeLoop.resume(); marqueeObserver.enable(); },
+      onLeave:     () => { isInView = false; marqueeLoop.pause();  marqueeObserver.disable(); },
+      onLeaveBack: () => { isInView = false; marqueeLoop.pause();  marqueeObserver.disable(); }
+    });
+    wrapper.setAttribute("data-draggable-marquee-init", "initialized");
+  });
+}
+// -----------------------------------------
+// MIDDELPUNT SCROLL ANIMATION
+// -----------------------------------------
+let _middelpuntST = null;
+function initMiddelpuntScroll(scope) {
+  scope = scope || document;
+  if (_middelpuntST) { _middelpuntST.kill(); _middelpuntST = null; }
+  const section = scope.querySelector('.section-middelpunt');
+  if (!section) return;
+  const image = section.querySelector('.middelpunt-image');
+  if (!image) return;
+  const targetWidth = window.innerWidth <= 991 ? '16svw' : '12svw';
+  gsap.set(image, { width: '0svw' });
+  const tween = gsap.to(image, {
+    width: targetWidth,
+    ease: 'power2.out',
+    scrollTrigger: {
+      trigger: section,
+      start: 'top 75%',
+      end: 'bottom 25%',
+      scrub: 0.8,
+    }
+  });
+  _middelpuntST = tween.scrollTrigger;
+}
+// -----------------------------------------
+// NAVBAR LINK HOVER (gradient sweep)
+// -----------------------------------------
+function initNavbarLinkHover(scope) {
+  scope = scope || document;
+  const links = scope.querySelectorAll('.navbar-link-large');
+  links.forEach(link => {
+    if (link.dataset.hoverInit === 'true') return;
+    const bg = link.querySelector('.menu-nav-button-bg');
+    if (!bg) return;
+    gsap.set(bg, { xPercent: -100 });
+    link.addEventListener('mouseenter', () => {
+      gsap.fromTo(bg,
+        { xPercent: -100 },
+        { xPercent: -33, duration: 1, ease: 'power2.out', overwrite: true }
+      );
+    });
+    link.addEventListener('mouseleave', () => {
+      gsap.fromTo(bg,
+        { xPercent: -33 },
+        { xPercent: 34, duration: 1, ease: 'power2.out', overwrite: true }
+      );
+    });
+    link.dataset.hoverInit = 'true';
+  });
+}
+// -----------------------------------------
+// ROUTE NAAR BANKOH
+// -----------------------------------------
+function initRouteToBankoh(scope) {
+  scope = scope || document;
+  const destination = 'Kaapstander 286, 6541 EX Nijmegen';
+  const input = scope.querySelector('[data-route-origin]');
+  const button = scope.querySelector('[data-route-submit]');
+  if (!input || !button) return;
+  if (button.dataset.routeInit === 'true') return;
+  const openRoute = (e) => {
+    e.preventDefault();
+    const origin = input.value.trim();
+    if (!origin) {
+      input.focus();
+      return;
+    }
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=driving`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+  button.addEventListener('click', openRoute);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') openRoute(e);
+  });
+  button.dataset.routeInit = 'true';
+}
+// -----------------------------------------
+// FAQ ACCORDION (Relume)
+// -----------------------------------------
+function initFaqAccordion(scope) {
+  scope = scope || document;
+  const items = scope.querySelectorAll('.faq3_accordion');
+  items.forEach(item => {
+    if (item.dataset.faqInit === 'true') return;
+    const question = item.querySelector('.faq3_question');
+    const answer = item.querySelector('.faq3_answer');
+    const icon = item.querySelector('.faq3_icon-wrapper');
+    if (!question || !answer) return;
+    gsap.set(answer, { height: 0, overflow: 'hidden' });
+    if (icon) gsap.set(icon, { rotation: 0 });
+    question.style.cursor = 'pointer';
+    let isOpen = false;
+    question.addEventListener('click', () => {
+      isOpen = !isOpen;
+      gsap.to(answer, {
+        height: isOpen ? 'auto' : 0,
+        duration: 0.5,
+        ease: isOpen ? 'power2.out' : 'power2.in'
+      });
+      if (icon) {
+        gsap.to(icon, {
+          rotation: isOpen ? 180 : 0,
+          duration: 0.5,
+          ease: isOpen ? 'power2.out' : 'power2.in'
+        });
+      }
+    });
+    item.dataset.faqInit = 'true';
+  });
+}
+// -----------------------------------------
+// BANKOH LOGO REVEAL
+// -----------------------------------------
+function initLogoReveal(scope) {
+  scope = scope || document;
+  const wrapper = scope.querySelector('.bnackup');
+  if (!wrapper || wrapper.dataset.logoInit === 'true') return;
+  const paths = wrapper.querySelectorAll('path[data-letter]');
+  if (!paths.length) return;
+  const grouped = {};
+  paths.forEach(p => {
+    const letter = p.dataset.letter;
+    (grouped[letter] = grouped[letter] || []).push(p);
+  });
+  const order = ['b', 'a', 'n', 'k', 'o', 'h'];
+  const letterGroups = order.map(l => grouped[l]).filter(Boolean);
+  letterGroups.forEach(g => gsap.set(g, { opacity: 0, y: 150 }));
+  letterGroups.forEach((g, i) => {
+    gsap.to(g, {
+      opacity: 1,
+      y: 0,
+      duration: 0.8,
+      ease: 'power2.out',
+      delay: 0.2 + i * 0.1
+    });
+  });
+  wrapper.dataset.logoInit = 'true';
+}
+// -----------------------------------------
+// HIGHLIGHT TEXT ON SCROLL
+// -----------------------------------------
+function initHighlightText(scope) {
+  scope = scope || document;
+  const targets = scope.querySelectorAll("[data-highlight-text]");
+  targets.forEach((heading) => {
+    if (heading.dataset.highlightInit === 'true') return;
+    const scrollStart = heading.getAttribute("data-highlight-scroll-start") || "top 70%";
+    const scrollEnd = heading.getAttribute("data-highlight-scroll-end") || "bottom 70%";
+    const fadedValue = parseFloat(heading.getAttribute("data-highlight-fade")) || 0.1;
+    const staggerValue = parseFloat(heading.getAttribute("data-highlight-stagger")) || 0.1;
+    new SplitText(heading, {
+      type: "words, chars",
+      autoSplit: true,
+      onSplit(self) {
+        return gsap.context(() => {
+          gsap.timeline({
+            scrollTrigger: {
+              scrub: true,
+              trigger: heading,
+              start: scrollStart,
+              end: scrollEnd,
+            }
+          }).from(self.chars, {
+            autoAlpha: fadedValue,
+            stagger: staggerValue,
+            ease: "linear"
+          });
+        });
+      }
+    });
+    heading.dataset.highlightInit = 'true';
+  });
+}
+// -----------------------------------------
+// GLOBAL PARALLAX
+// -----------------------------------------
+let _parallaxMM = null;
+function initGlobalParallax(scope) {
+  scope = scope || document;
+  if (_parallaxMM) { _parallaxMM.revert(); _parallaxMM = null; }
+  _parallaxMM = gsap.matchMedia();
+  _parallaxMM.add({
+    isMobile: "(max-width:479px)",
+    isMobileLandscape: "(max-width:767px)",
+    isTablet: "(max-width:991px)",
+    isDesktop: "(min-width:992px)"
+  }, (context) => {
+    const { isMobile, isMobileLandscape, isTablet } = context.conditions;
+    scope.querySelectorAll('[data-parallax="trigger"]').forEach((trigger) => {
+      const disable = trigger.getAttribute("data-parallax-disable");
+      if (
+        (disable === "mobile" && isMobile) ||
+        (disable === "mobileLandscape" && isMobileLandscape) ||
+        (disable === "tablet" && isTablet)
+      ) return;
+      const target = trigger.querySelector('[data-parallax="target"]') || trigger;
+      const direction = trigger.getAttribute("data-parallax-direction") || "vertical";
+      const prop = direction === "horizontal" ? "xPercent" : "yPercent";
+      const scrubAttr = trigger.getAttribute("data-parallax-scrub");
+      const scrub = scrubAttr ? parseFloat(scrubAttr) : true;
+      const startAttr = trigger.getAttribute("data-parallax-start");
+      const startVal = startAttr !== null ? parseFloat(startAttr) : 20;
+      const endAttr = trigger.getAttribute("data-parallax-end");
+      const endVal = endAttr !== null ? parseFloat(endAttr) : -20;
+      const scrollStartRaw = trigger.getAttribute("data-parallax-scroll-start") || "top bottom";
+      const scrollStart = `clamp(${scrollStartRaw})`;
+      const scrollEndRaw = trigger.getAttribute("data-parallax-scroll-end") || "bottom top";
+      const scrollEnd = `clamp(${scrollEndRaw})`;
+      gsap.fromTo(target,
+        { [prop]: startVal },
+        {
+          [prop]: endVal,
+          ease: "none",
+          scrollTrigger: {
+            trigger,
+            start: scrollStart,
+            end: scrollEnd,
+            scrub,
+          },
+        }
+      );
+    });
+  });
 }
